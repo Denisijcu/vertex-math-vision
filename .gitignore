@@ -1,0 +1,46 @@
+# Vertex Coders Security & Artifact Exclusion Standard
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python & Envs
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+
+# Data & Multimodal Cache (Never commit raw datasets or images)
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+*.jpg
+*.png
+*.parquet
+*.arrow
+*.jsonl
+
+# Model Weights, Checkpoints & Quantizations
+models/lora_adapters/*
+models/gguf/*
+!models/lora_adapters/.gitkeep
+!models/gguf/.gitkeep
+outputs/
+wandb/
+runs/
+*.gguf
+*.safetensors
+*.bin
+*.pt
+*.pth
+unsloth_compiled_cache/
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
