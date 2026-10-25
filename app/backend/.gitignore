@@ -1,0 +1,25 @@
+# Entorno de Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Pruebas
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Secretos: nunca al repositorio (la plantilla sí)
+.env
+.env.*
+!.env.example
+
+# Reportes de error de los estudiantes: datos de usuarios, no van a GitHub
+data/*
+!data/.gitkeep
+
+# Sistema y editores
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

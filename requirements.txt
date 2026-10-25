@@ -10,3 +10,4 @@ bitsandbytes>=0.45.0
 qwen-vl-utils>=0.0.8
 Pillow>=10.4.0
 python-dotenv>=1.0.1
+PIL>=10.4.0

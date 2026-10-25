@@ -1,0 +1,12 @@
+# Entorno de Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# Secretos
+.env
+.env.*
+
+# Reportes de error guardados al probar el Space en local
+reports.jsonl
+data/

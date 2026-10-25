@@ -1,0 +1,6 @@
+torch==2.9.1
+transformers==5.18.0
+peft==0.21.0
+accelerate==1.13.0
+sympy==1.13.3
+pydantic-settings==2.7.1

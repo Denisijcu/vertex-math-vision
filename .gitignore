@@ -39,6 +39,15 @@ runs/
 *.pth
 unsloth_compiled_cache/
 
+# Cachés y herramientas pesadas (nunca a GitHub)
+.cache/
+llama.cpp/
+models/merged/
+models/base/
+outputs_*/
+!outputs_eval/
+.venv*/
+
 # IDE & OS
 .vscode/
 .idea/

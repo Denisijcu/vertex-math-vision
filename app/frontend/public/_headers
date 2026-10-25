@@ -1,0 +1,7 @@
+# Cabeceras para Netlify (sirven también si subes la carpeta con Netlify Drop).
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(self), microphone=(), geolocation=()
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://denisijcu-vertex-math-vision.hf.space wss://denisijcu-vertex-math-vision.hf.space https://huggingface.co; frame-ancestors 'none'; base-uri 'self'; form-action 'self'

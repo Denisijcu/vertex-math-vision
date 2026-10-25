@@ -1,0 +1,3 @@
+﻿[2026-10-22T14:25:42] datos v2
+[2026-10-22T14:28:07] prueba de humo v2
+[2026-10-23T13:15:28] la tubería murió el 22-oct ~14:32 en el paso 2 de la prueba de humo: los procesos lanzados desde el puente de Claude Desktop mueren cuando la app se cierra o se actualiza. Hay que lanzarla desde una ventana propia de PowerShell.

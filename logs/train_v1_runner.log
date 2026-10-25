@@ -1,0 +1,7 @@
+﻿[2026-10-21T15:27:55] examen base terminado; prueba de humo
+[2026-10-21T15:58:40] prueba de humo OK; entrenamiento completo
+[2026-10-21T16:01:07] cancelado el de 1875 pasos (~60 s/paso = ~31 h); relanzado con --max-samples 6000 (750 pasos, ~12.5 h)
+[2026-10-22T04:49:31] el proceso murio ~02:00 en el paso 595 (reinicio del driver NVIDIA, evento nvlddmkm 153); retomado desde checkpoint-400 con --resume --save-steps 100
+[2026-10-22T10:38:28] entrenamiento terminado (codigo 0)
+[2026-10-22T10:39:23] examen del LoRA v1
+[2026-10-22T13:25:41] examen del LoRA v1 terminado; ver logs\comparacion_base_vs_lora_v1.txt

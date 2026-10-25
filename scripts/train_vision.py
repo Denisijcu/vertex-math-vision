@@ -1,6 +1,7 @@
 import os
+import warnings
 import torch
-from PIL import Image
+from PIL import Image, ImageFile
 from datasets import load_dataset
 from dotenv import load_dotenv
 from unsloth import FastVisionModel, is_bf16_supported
@@ -9,10 +10,17 @@ from trl import SFTTrainer, SFTConfig
 
 load_dotenv()
 
-MODEL_NAME = os.getenv("BASE_MODEL", "unsloth/Qwen2.5-VL-7B-Instruct-bnb-4bit")
+# Hardening contra DecompressionBomb
+Image.MAX_IMAGE_PIXELS = int(os.getenv("MAX_IMAGE_PIXELS", 25000000))
+ImageFile.LOAD_TRUNCATED_IMAGES = False
+warnings.simplefilter("ignore", Image.DecompressionBombWarning)
+
+MODEL_NAME = os.getenv("BASE_MODEL", "unsloth/Qwen2.5-VL-3B-Instruct-bnb-4bit")
 LORA_RANK = int(os.getenv("LORA_RANK", 16))
 LORA_ALPHA = int(os.getenv("LORA_ALPHA", 16))
-MAX_PIXELS = 768 * 768  # Cap de resolución para evitar picos de VRAM (OOM Defense)
+MAX_DIM = int(os.getenv("MAX_VIEW_DIM", 512))
+MAX_PIXELS = MAX_DIM * MAX_DIM  # 512x512 para proteger los 6GB de VRAM
+MAX_STEPS = int(os.getenv("MAX_STEPS", 500))  # Smoke-test rápido
 
 SYSTEM_PROMPT = (
     "You are Vertex-Math-Vision, an elite multimodal mathematical reasoning engine "
@@ -20,8 +28,14 @@ SYSTEM_PROMPT = (
     "mathematical reasoning, and place the final answer inside \\boxed{}."
 )
 
+def verify_gpu():
+    if not torch.cuda.is_available():
+        raise RuntimeError("CRITICAL: CUDA is not available. Check PyTorch installation.")
+    device_name = torch.cuda.get_device_name(0)
+    vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+    print(f"[+] Hardware Verified: {device_name} ({vram_gb:.2f} GB VRAM)")
+
 def sanitize_image(img: Image.Image) -> Image.Image:
-    """Convierte a RGB puro y limita la resolución para proteger la VRAM."""
     if img.mode != "RGB":
         img = img.convert("RGB")
     w, h = img.size
@@ -32,9 +46,7 @@ def sanitize_image(img: Image.Image) -> Image.Image:
     return img
 
 def convert_to_vlm_conversation(sample):
-    """Estructura el registro en el esquema multimodal nativo de Unsloth."""
     img = sanitize_image(sample["decoded_image"])
-    
     question = str(sample.get("question", "")).strip()
     options = sample.get("options", [])
     solution = str(sample.get("solution") or "").strip()
@@ -50,32 +62,32 @@ def convert_to_vlm_conversation(sample):
     else:
         response = f"Final Answer: $$\\boxed{{{answer}}}$$"
 
-    conversation = [
-        {
-            "role": "user",
-            "content": [
-                {"type": "text", "text": f"{SYSTEM_PROMPT}\n\n{question}"},
-                {"type": "image", "image": img}
-            ]
-        },
-        {
-            "role": "assistant",
-            "content": [
-                {"type": "text", "text": response}
-            ]
-        }
-    ]
-    return {"messages": conversation}
+    return {
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": f"{SYSTEM_PROMPT}\n\n{question}"},
+                    {"type": "image", "image": img}
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [{"type": "text", "text": response}]
+            }
+        ]
+    }
 
 def main():
+    verify_gpu()
     print(f"[*] Initializing FastVisionModel: {MODEL_NAME}")
+    
     model, tokenizer = FastVisionModel.from_pretrained(
         MODEL_NAME,
         load_in_4bit=True,
         use_gradient_checkpointing="unsloth",
     )
 
-    # Inyección de QLoRA en las capas multimodales (Visión + Lenguaje + Proyector)
     model = FastVisionModel.get_peft_model(
         model,
         finetune_vision_layers=True,
@@ -87,18 +99,21 @@ def main():
         lora_dropout=0.0,
         bias="none",
         random_state=3407,
-        use_rslora=False,
-        loftq_config=None,
     )
 
-    print("[*] Loading and transforming MathLLMs/MathVision dataset...")
+    print("[*] Loading MathLLMs/MathVision dataset for Smoke Test...")
     raw_dataset = load_dataset("MathLLMs/MathVision", split="test")
-    # Filtramos muestras sin imagen decodificada
-    raw_dataset = raw_dataset.filter(lambda x: x["decoded_image"] is not None)
     
-    # Transformación lazy en memoria para alimentar el UnslothVisionDataCollator
-    converted_dataset = [convert_to_vlm_conversation(sample) for sample in raw_dataset]
+    converted_dataset = []
+    for idx in range(min(100, len(raw_dataset))):
+        try:
+            sample = raw_dataset[idx]
+            if sample.get("decoded_image") is not None:
+                converted_dataset.append(convert_to_vlm_conversation(sample))
+        except Exception:
+            continue
 
+    print(f"[+] Prepared {len(converted_dataset)} samples for smoke test.")
     FastVisionModel.for_training(model)
 
     trainer = SFTTrainer(
@@ -107,38 +122,37 @@ def main():
         data_collator=UnslothVisionDataCollator(model, tokenizer),
         train_dataset=converted_dataset,
         args=SFTConfig(
-            per_device_train_batch_size=int(os.getenv("BATCH_SIZE", 2)),
-            gradient_accumulation_steps=int(os.getenv("GRAD_ACCUMULATION", 4)),
-            warmup_steps=15,
-            num_train_epochs=int(os.getenv("EPOCHS", 3)),
-            learning_rate=float(os.getenv("LEARNING_RATE", 2e-4)),
+            per_device_train_batch_size=1,
+            gradient_accumulation_steps=4,
+            warmup_steps=5,
+            max_steps=MAX_STEPS,  # Límite estricto para validar en local
+            learning_rate=2e-4,
             fp16=not is_bf16_supported(),
             bf16=is_bf16_supported(),
-            logging_steps=10,
+            logging_steps=5,
             optim="adamw_8bit",
             weight_decay=0.01,
             lr_scheduler_type="cosine",
             seed=3407,
-            output_dir="outputs",
+            output_dir="outputs_smoke",
             report_to="none",
-            # Parámetros obligatorios para Vision Fine-Tuning en TRL
             remove_unused_columns=False,
             dataset_text_field="",
             dataset_kwargs={"skip_prepare_dataset": True},
-            dataset_num_proc=2,
-            max_seq_length=2048,
+            dataset_num_proc=1,
+            dataloader_num_workers=0,
+            max_seq_length=1536,
         ),
     )
 
-    print("[*] Starting Multimodal QLoRA Training...")
+    print(f"[*] Starting Smoke Test ({MAX_STEPS} steps)...")
     trainer_stats = trainer.train()
-    print(f"[+] Training completed in {trainer_stats.metrics['train_runtime']:.2f}s")
+    print(f"[+] Smoke Test completed successfully in {trainer_stats.metrics['train_runtime']:.2f}s")
 
-    # Guardado seguro de los adaptadores LoRA
-    lora_path = "models/lora_adapters/vertex-math-vision-lora"
+    lora_path = "models/lora_adapters/vertex-math-vision-smoke"
     model.save_pretrained(lora_path)
     tokenizer.save_pretrained(lora_path)
-    print(f"[+] LoRA adapters securely saved to: {lora_path}")
+    print(f"[+] Smoke adapters saved to: {lora_path}")
 
 if __name__ == "__main__":
     main()
