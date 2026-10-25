@@ -36,6 +36,12 @@ def build_ask(student_text: str, confirmed_reading: str, lang: str) -> str:
 
 
 _COMPUTED = re.compile(r"^[\d\s+\-*/×÷·().,^]+=\s*-?\d+(?:[.,]\d+)?\s*$")
+# A veces el modelo repite las instrucciones de READ_PROMPT ("Rule:** Do not solve anything…"): no son parte del ejercicio.
+_ECHO = re.compile(
+    r"^(?:rule|regla)\b|do not solve|do not calculate|write no results|copy exactly|"
+    r"no resuelvas|no hagas ninguna cuenta|no escribas resultados|copia exactamente",
+    re.I,
+)
 
 
 def parse_reading(raw: str) -> tuple[str, bool, list[str]]:
@@ -50,6 +56,7 @@ def parse_reading(raw: str) -> tuple[str, bool, list[str]]:
     lines = [l.strip(" *-\t") for l in text.splitlines() if l.strip(" *-\t")]
     # A veces añade "NO_MATH" al final aunque sí copió un ejercicio: esa línea sobra.
     lines = [l for l in lines if not re.fullmatch(r"\W*NO_MATH\W*", l, flags=re.I)]
+    lines = [l for l in lines if not _ECHO.search(l.replace("*", ""))]
     # Si el modelo coló una cuenta ya hecha ("(120-40)+25=95"), es un resultado, no parte del ejercicio: fuera.
     # Solo cuando hay más líneas; un ejercicio de una sola línea se deja tal cual.
     if len(lines) > 1:
