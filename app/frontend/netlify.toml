@@ -1,10 +1,17 @@
-# Netlify: publica el build de Angular. En la UI de Netlify, "Base directory" = app/frontend (o la carpeta donde esté este archivo).
+# Netlify para el frontend de Vertex Math Vision.
+# El repositorio es todo el proyecto (E:\vertex-math-vision); Netlify solo construye esta carpeta.
+# En la UI de Netlify pon SOLO "Base directory" = app/frontend. Este archivo está dentro de esa carpeta
+# y Netlify lo lee de ahí: build, publish, Node, redirecciones y cabeceras salen de aquí.
 [build]
   command = "npm run build"
   publish = "dist/frontend/browser"
+  # No reconstruir si el commit no toca el frontend (cambios en el modelo, el Space, los scripts…).
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- ."
 
 [build.environment]
   NODE_VERSION = "22"
+  # npm 10 (el de Node 22) falla con un error interno ("edgesOut") al resolver las dependencias de Angular 21.
+  NPM_FLAGS = "--legacy-peer-deps"
 
 # SPA: cualquier ruta (p. ej. /privacidad) la resuelve Angular.
 [[redirects]]
